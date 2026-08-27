@@ -10,7 +10,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { fetchNews, summarizeNews } from "@/lib/news/api";
-import { useBookmarks } from "@/lib/news/bookmarks";
+import { hydrateBookmarks, useBookmarks } from "@/lib/news/bookmarks";
 import {
   CATEGORY_LABELS,
   NEWS_CATEGORIES,
@@ -21,14 +21,6 @@ import {
 } from "@/lib/news/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-function useHasHydrated() {
-  const [hydrated, setHydrated] = useState(false);
-  useEffect(() => {
-    setHydrated(true);
-  }, []);
-  return hydrated;
-}
 
 function formatWhen(iso: string): string {
   if (!iso) return "日時不明";
@@ -106,9 +98,11 @@ function StoryBody({
   index: number;
 }) {
   const [open, setOpen] = useState(featured);
-  const hydrated = useHasHydrated();
-  const saved = useBookmarks((state) =>
-    hydrated ? state.items.some((row) => row.id === item.id) : false,
+  const hasHydrated = useBookmarks((state) => state.hasHydrated);
+  const saved = useBookmarks(
+    (state) =>
+      hasHydrated &&
+      state.items.some((row) => row.id === item.id || row.url === item.url),
   );
   const toggle = useBookmarks((state) => state.toggle);
   const summary = item.summary || item.snippet;
@@ -203,9 +197,13 @@ function StoryBody({
 export function Digest({ initial }: { initial: NewsPayload | NewsError }) {
   const [filter, setFilter] = useState<FilterId>("all");
   const [view, setView] = useState<"feed" | "saved">("feed");
-  const hydrated = useHasHydrated();
+  const hasHydrated = useBookmarks((state) => state.hasHydrated);
   const bookmarks = useBookmarks((state) => state.items);
-  const savedItems = hydrated ? bookmarks : [];
+  const savedItems = hasHydrated ? bookmarks : [];
+
+  useEffect(() => {
+    hydrateBookmarks();
+  }, []);
 
   const [payload, setPayload] = useState<NewsPayload | NewsError>(initial);
 
@@ -402,7 +400,7 @@ export function Digest({ initial }: { initial: NewsPayload | NewsError }) {
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
-              保存した記事はこの端末に残ります。速報が入れ替わってもここから読み返せます。
+              保存はこのブラウザの中だけに残ります。別の端末・シークレットモード・サイトデータの削除では消えます。
             </p>
           )}
         </div>
