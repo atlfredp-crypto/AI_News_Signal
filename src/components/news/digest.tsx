@@ -23,6 +23,32 @@ import { InstallHint } from "@/components/news/install-hint";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+const SESSION_PASS_KEY = "signal-summary-pass-v1";
+
+function readStoredPassphrase(): string {
+  try {
+    return window.sessionStorage.getItem(SESSION_PASS_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function storePassphrase(value: string) {
+  try {
+    window.sessionStorage.setItem(SESSION_PASS_KEY, value);
+  } catch {
+    /* ignore quota */
+  }
+}
+
+function clearStoredPassphrase() {
+  try {
+    window.sessionStorage.removeItem(SESSION_PASS_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 function formatWhen(iso: string): string {
   if (!iso) return "日時不明";
   const date = parseISO(iso);
@@ -198,6 +224,9 @@ function StoryBody({
 export function Digest({ initial }: { initial: NewsPayload | NewsError }) {
   const [filter, setFilter] = useState<FilterId>("all");
   const [view, setView] = useState<"feed" | "saved">("feed");
+  const [passOpen, setPassOpen] = useState(false);
+  const [passValue, setPassValue] = useState("");
+  const [passError, setPassError] = useState("");
   const hasHydrated = useBookmarks((state) => state.hasHydrated);
   const bookmarks = useBookmarks((state) => state.items);
   const savedItems = hasHydrated ? bookmarks : [];
@@ -220,9 +249,16 @@ export function Digest({ initial }: { initial: NewsPayload | NewsError }) {
   });
 
   const summarize = useMutation({
-    mutationFn: async (list: NewsItem[]) => {
+    mutationFn: async ({
+      list,
+      passphrase,
+    }: {
+      list: NewsItem[];
+      passphrase: string;
+    }) => {
       const result = await summarizeNews({
         data: {
+          passphrase,
           items: list.map((item) => ({
             id: item.id,
             title: item.title,
@@ -232,9 +268,13 @@ export function Digest({ initial }: { initial: NewsPayload | NewsError }) {
         },
       });
       if (!result.ok) throw new Error(result.error);
-      return result;
+      return { result, passphrase };
     },
-    onSuccess: (result) => {
+    onSuccess: ({ result, passphrase }) => {
+      storePassphrase(passphrase);
+      setPassOpen(false);
+      setPassValue("");
+      setPassError("");
       setPayload((current) => {
         if (!current.ok) return current;
         const map = new Map(result.items.map((row) => [row.id, row]));
@@ -253,6 +293,14 @@ export function Digest({ initial }: { initial: NewsPayload | NewsError }) {
         };
       });
     },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "要約に失敗しました。";
+      if (message.includes("合言葉")) {
+        clearStoredPassphrase();
+        setPassOpen(true);
+        setPassError(message);
+      }
+    },
   });
 
   const items = payload.ok ? payload.items : [];
@@ -270,6 +318,16 @@ export function Digest({ initial }: { initial: NewsPayload | NewsError }) {
   const alreadySummarized =
     items.length > 0 && items.every((item) => Boolean(item.grokSummary));
   const refreshing = refresh.isPending;
+
+  const startSummarize = () => {
+    const stored = readStoredPassphrase();
+    if (stored) {
+      summarize.mutate({ list: items, passphrase: stored });
+      return;
+    }
+    setPassError("");
+    setPassOpen(true);
+  };
 
   return (
     <div className="pwa-shell mx-auto flex min-h-dvh w-full max-w-3xl flex-col">
@@ -384,7 +442,7 @@ export function Digest({ initial }: { initial: NewsPayload | NewsError }) {
                 <Button
                   size="sm"
                   className="flex-1 sm:flex-none"
-                  onClick={() => summarize.mutate(items)}
+                  onClick={startSummarize}
                   disabled={
                     summarize.isPending ||
                     items.length === 0 ||
@@ -415,7 +473,7 @@ export function Digest({ initial }: { initial: NewsPayload | NewsError }) {
         </div>
       ) : null}
 
-      {summarize.isError ? (
+      {summarize.isError && !passOpen ? (
         <p className="mb-4 text-sm text-destructive" role="status">
           {summarize.error instanceof Error
             ? summarize.error.message
@@ -466,6 +524,82 @@ export function Digest({ initial }: { initial: NewsPayload | NewsError }) {
         ニュース、ITmedia AI+、Impress Watch、TechCrunch、The Verge、MIT
         News、Hacker News）。要約は見出しと抜粋をもとにした速報です。詳細は原文で確認してください。
       </footer>
+
+      {passOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-background/80 p-5 sm:items-center"
+          role="presentation"
+          onClick={() => {
+            if (!summarize.isPending) setPassOpen(false);
+          }}
+        >
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pass-title"
+            className="w-full max-w-sm rounded-xl bg-card p-5 shadow-border"
+            onClick={(event) => event.stopPropagation()}
+            onSubmit={(event) => {
+              event.preventDefault();
+              const next = passValue.trim();
+              if (!next) {
+                setPassError("合言葉を入力してください。");
+                return;
+              }
+              summarize.mutate({ list: items, passphrase: next });
+            }}
+          >
+            <p
+              id="pass-title"
+              className="font-display text-xl tracking-title text-foreground"
+            >
+              合言葉
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              要約は合言葉があるときだけ実行します。このタブを開いている間は再入力しません。
+            </p>
+            <label className="sr-only" htmlFor="summary-passphrase">
+              合言葉
+            </label>
+            <input
+              id="summary-passphrase"
+              type="password"
+              autoComplete="off"
+              autoFocus
+              value={passValue}
+              onChange={(event) => {
+                setPassValue(event.target.value);
+                setPassError("");
+              }}
+              className="mt-4 h-11 w-full border-b border-border bg-transparent text-sm text-foreground outline-none focus:border-foreground"
+            />
+            {passError ? (
+              <p className="mt-2 text-sm text-destructive" role="status">
+                {passError}
+              </p>
+            ) : null}
+            <div className="mt-5 flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                disabled={summarize.isPending}
+                onClick={() => setPassOpen(false)}
+              >
+                やめる
+              </Button>
+              <Button type="submit" className="flex-1" disabled={summarize.isPending}>
+                {summarize.isPending ? (
+                  <LoaderCircle className="animate-spin" />
+                ) : (
+                  <PenLine />
+                )}
+                要約する
+              </Button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </div>
   );
 }

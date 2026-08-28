@@ -5,7 +5,7 @@ AI関連の最新ニュースを集め、最大50本に圧縮して表示する�
 - 公開RSS（Google ニュース、ITmedia AI+、Impress Watch、TechCrunch、The Verge、MIT News）と Hacker News から収集
 - 抜粋のある記事を優先し、媒体の偏りを抑えて選定
 - 記事ごとの要約、カテゴリ絞り込み、ブックマーク（この端末に保存）
-- `XAI_API_KEY` がある場合、「日本語で要約」で Grok による日本語要約が使えます
+- `XAI_API_KEY` がある場合、「日本語で要約」で Grok による日本語要約が使えます（合言葉が必要）
 - ホーム画面に追加して、アプリとして開けます（PWA）
 
 ## 起動
@@ -37,6 +37,7 @@ npm run build
 | 変数 | 必須 | 説明 |
 |---|---|---|
 | `XAI_API_KEY` | いいえ | xAI API キー。未設定でもニュース一覧は表示されます |
+| `SIGNAL_SUMMARY_PASSPHRASE` | 要約する場合は必要 | 要約ボタン用の合言葉。リポジトリには入れない |
 
 ## スタック
 

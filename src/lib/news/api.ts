@@ -6,6 +6,7 @@ import {
   parseFeedXml,
   pickDiverse,
 } from "./parse";
+import { hasSummaryPassphrase, verifySummaryPassphrase } from "./passphrase";
 import type {
   NewsCategory,
   NewsError,
@@ -156,7 +157,7 @@ export const fetchNews = createServerFn({ method: "POST" })
           ok: true,
           items: applyGrok(rssCache.items),
           fetchedAt: new Date(rssCache.at).toISOString(),
-          aiAvailable: Boolean(process.env.XAI_API_KEY),
+          aiAvailable: Boolean(process.env.XAI_API_KEY) && hasSummaryPassphrase(),
           sourceCount: rssCache.sourceCount,
         };
       }
@@ -176,7 +177,7 @@ export const fetchNews = createServerFn({ method: "POST" })
         ok: true,
         items: applyGrok(collected.items),
         fetchedAt: new Date(rssCache.at).toISOString(),
-        aiAvailable: Boolean(process.env.XAI_API_KEY),
+        aiAvailable: Boolean(process.env.XAI_API_KEY) && hasSummaryPassphrase(),
         sourceCount: collected.sourceCount,
       };
     } catch (err) {
@@ -186,6 +187,7 @@ export const fetchNews = createServerFn({ method: "POST" })
   });
 
 type SummarizeInput = {
+  passphrase?: string;
   items: Array<{
     id: string;
     title: string;
@@ -200,6 +202,12 @@ export const summarizeNews = createServerFn({ method: "POST" })
     const apiKey = process.env.XAI_API_KEY;
     if (!apiKey) {
       return { ok: false, error: "要約機能は現在利用できません。" };
+    }
+    if (!hasSummaryPassphrase()) {
+      return { ok: false, error: "要約の合言葉が設定されていません。" };
+    }
+    if (!verifySummaryPassphrase(data.passphrase)) {
+      return { ok: false, error: "合言葉が違います。" };
     }
 
     const items = data.items.slice(0, MAX_ITEMS);
