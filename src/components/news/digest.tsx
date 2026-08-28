@@ -19,6 +19,7 @@ import {
   type NewsItem,
   type NewsPayload,
 } from "@/lib/news/types";
+import { InstallHint } from "@/components/news/install-hint";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -271,7 +272,7 @@ export function Digest({ initial }: { initial: NewsPayload | NewsError }) {
   const refreshing = refresh.isPending;
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-5 pb-16 pt-8 sm:px-8 sm:pt-12">
+    <div className="pwa-shell mx-auto flex min-h-dvh w-full max-w-3xl flex-col">
       <header className="mb-10">
         <div className="flex min-w-0 items-center justify-between gap-3 text-kicker font-medium text-muted-foreground">
           <time className="truncate tracking-kicker" suppressHydrationWarning>
@@ -296,6 +297,7 @@ export function Digest({ initial }: { initial: NewsPayload | NewsError }) {
           <p className="mt-3 text-sm text-muted-foreground">
             いま流れているAIニュースを、最大50本に圧縮した速報。
           </p>
+          <InstallHint />
         </div>
 
         <div className="mt-8 h-px bg-foreground/80" />

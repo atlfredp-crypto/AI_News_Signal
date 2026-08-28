@@ -61,6 +61,21 @@
     overflow-x: hidden;
   }
 
+  .pwa-shell {
+    padding-top: max(2rem, env(safe-area-inset-top));
+    padding-bottom: max(4rem, env(safe-area-inset-bottom));
+    padding-left: max(1.25rem, env(safe-area-inset-left));
+    padding-right: max(1.25rem, env(safe-area-inset-right));
+  }
+
+  @media (min-width: 640px) {
+    .pwa-shell {
+      padding-top: max(3rem, env(safe-area-inset-top));
+      padding-left: max(2rem, env(safe-area-inset-left));
+      padding-right: max(2rem, env(safe-area-inset-right));
+    }
+  }
+
   h1,
   h2,
   h3 {
