@@ -22,7 +22,7 @@
 import { spawn } from "node:child_process";
 import { readFileSync, realpathSync } from "node:fs";
 import { constants as osConstants } from "node:os";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const APP_ENV_REL_PATH = ".grok/app-env.json";
@@ -87,6 +87,17 @@ export function projectRoot() {
   return dirname(dirname(fileURLToPath(import.meta.url)));
 }
 
+function envWithLocalBin(processEnv) {
+  const env = { ...processEnv };
+  const bin = join(projectRoot(), "node_modules", ".bin");
+  const pathKey =
+    process.platform === "win32"
+      ? (Object.keys(env).find((key) => key.toLowerCase() === "path") ?? "Path")
+      : "PATH";
+  env[pathKey] = env[pathKey] ? `${bin}${delimiter}${env[pathKey]}` : bin;
+  return env;
+}
+
 /**
  * Whether `moduleUrl` is the script node was asked to run.
  *
@@ -110,8 +121,13 @@ function main(argv) {
     console.error("usage: node scripts/with-app-env.mjs <command> [args…]");
     process.exit(2);
   }
-  const env = mergeAppEnv(readAppEnv(projectRoot()), process.env);
-  const child = spawn(command, args, { stdio: "inherit", env });
+  const env = envWithLocalBin(mergeAppEnv(readAppEnv(projectRoot()), process.env));
+  const child = spawn(command, args, {
+    stdio: "inherit",
+    env,
+    shell: process.platform === "win32",
+    windowsHide: true,
+  });
   // The dev server is long-running and is stopped by signalling this wrapper.
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
     process.on(signal, () => child.kill(signal));
